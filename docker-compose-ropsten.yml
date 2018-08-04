@@ -1,0 +1,42 @@
+version: '3'
+
+services:
+    geth:
+      image: ethereum/client-go
+      volumes:
+        - $HOME/.ethereum:/root/.ethereum
+      command:
+        --rpc --rpcaddr "0.0.0.0" --testnet
+
+    mongodb:
+      image: mongo
+      volumes:
+        - ./db-storage:/data/db
+      #ports:
+      #  - "27017:27017"
+
+    pkcollector:
+       build:
+          context: ./pubkey-collector
+          dockerfile: pubkey-collector.docker
+       environment:
+         - CHAINID=3
+         - RPCADDR=/chaindata/geth.ipc
+         - DBADDR=mongodb://mongodb/e2e
+       volumes:
+         - $HOME/.ethereum/testnet:/chaindata
+       links:
+          - geth
+          - mongodb
+       depends_on:
+          - "geth"
+          - "mongodb"
+
+    api:
+      build:
+        context: ./api
+        dockerfile: api.docker
+      ports:
+        - "80:5000"
+      links:
+        - mongodb
