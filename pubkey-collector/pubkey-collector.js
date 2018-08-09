@@ -69,6 +69,7 @@ async function main() {
     else if (syncing) {
         winston.info("Syncing Complete. Processing blocks...")
         await pkCollector.processBlocks()
+        winston.info("Completed searching.");
         // We are up to date.
         // Now continue the update process for new blocks.
         await pkCollector.continualUpdate();
@@ -81,6 +82,7 @@ async function main() {
       
       winston.info("Processing blocks...")
       await pkCollector.processBlocks()
+      winston.info("Completed searching.");
       // We are up to date.
       // Now continue the update process for new blocks.
       await pkCollector.continualUpdate();
@@ -227,8 +229,7 @@ class PublicKeyCollector {
           returnData += chunk; 
         });
         res.on('end', () => {
-          returnData = JSON.parse(returnData) // have to parse it twice...
-          returnData = JSON.parse(returnData) // have to parse it twice...
+          returnData = JSON.parse(returnData) 
           if (returnData.result != 'success') {
             winston.error("API: Storage of Key Failed\n" + returnData.result)
             this.failedBlocks.push(blockNumber)
@@ -290,7 +291,6 @@ class PublicKeyCollector {
           this.lastBlock = blockNumber;
         }
       }
-      winston.info("Completed searching.");
     }
 
     /**
