@@ -42,7 +42,7 @@ try:
 except:
     db_dir = '/var/e2e'
 # Single non-session api key for adding keys to db
-API_KEY = os.environ['API_KEY']
+API_KEY = os.environ['APIKEY']
 
 global_db = rocksdb.DB(db_dir + '/pkcollector.ldb', db_opts)
 

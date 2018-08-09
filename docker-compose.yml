@@ -1,41 +1,38 @@
 version: '3'
 
 services:
+  # Set up as many of these as networks you want to collect keys for
+  # This is an example of a ropsten node
     geth:
       image: ethereum/client-go
       volumes:
         - $HOME/.ethereum:/root/.ethereum
       command:
-        --rpc --rpcaddr "0.0.0.0"
+        --rpc --rpcaddr "0.0.0.0" --testnet
 
-    mongodb:
-      image: mongo
-      volumes:
-        - ./db-storage:/data/db
-      #ports:
-      #  - "27017:27017"
+    api:
+      build:
+        context: ./api
+        dockerfile: api.docker
+        evironment:
+          - ROCKSDB:/var/e2e # Location of the database
+          - APIKEY:SecretKeyHere # A secret key to access the api
+      ports:
+        - "80:5000"
 
-      pkcollector:
-         build:
-            context: ./pubkey-collector
-            dockerfile: pubkey-collector.docker
-         environment:
-           - CHAINID=1
-           - RPCADDR=/chaindata/geth.ipc
-         volumes:
-           - $HOME/.ethereum:/chaindata
-         links:
-            - geth
-            - mongodb
-         depends_on:
-            - "geth"
-            - "mongodb"
-
-      api:
-        build:
-          context: ./api
-          dockerfile: api.docker
-        ports:
-          - "80:5000"
-        links:
-          - mongodb
+    # One of these per network also
+    pkcollector:
+       build:
+          context: ./pubkey-collector
+          dockerfile: pubkey-collector.docker
+       environment:
+         - CHAINID=3 ## This is ropsten specific
+         - IPCADDR=/chaindata/geth.ipc
+         - APIHOST:api
+         - APIPORT:5000
+         - APIKEY:SecretKeyHere # The same secret key used in the api
+       volumes:
+         - $HOME/.ethereum/testnet:/chaindata
+       depends_on:
+          - "geth"
+          - "api"

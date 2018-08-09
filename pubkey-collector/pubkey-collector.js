@@ -252,26 +252,23 @@ class PublicKeyCollector {
      * are sent to the api.
      */
     async processBlocks() {
-        if(this.currentBlock > this.lastBlock) {
-            winston.info("Completed searching.");
-            return;
-        }
+      while(this.currentBlock < this.lastBlock) { 
         if(this.currentBlock % 1000 == 0 && this.currentBlock != 0){
           winston.info(`Transactions Processed (last 1000 blocks): ${this.transactionTally}`)
           this.transactionTally = 0;
           winston.info(`Processing Block ${this.currentBlock}`)
         }
-        let res = await this.web3.eth.getBlock(this.currentBlock, true)
-        if(res.transactions.length != 0) {
+        let blockData = await this.web3.eth.getBlock(this.currentBlock, true)
+        if(blockData.transactions.length != 0) {
           let pkObj = {addresses: [], pubkeys: []}
-          for (let i = 0; i < res.transactions.length; i++) {
-              // Only process transactions we haven't seen before.
-              if (res.transactions[i].nonce == 1) {
-                this.transactionTally += 1;
-                let pkEntry = this._processTransaction(res.transactions[i]);
-                pkObj.addresses.push(pkEntry.address)  
-                pkObj.pubkeys.push(pkEntry.pubKey)  
-              }
+          for (let i = 0; i < blockData.transactions.length; i++) {
+            // Only process transactions we haven't seen before.
+            if (blockData.transactions[i].nonce == 1) {
+              this.transactionTally += 1;
+              let pkEntry = this._processTransaction(blockData.transactions[i]);
+              pkObj.addresses.push(pkEntry.address)  
+              pkObj.pubkeys.push(pkEntry.pubKey)  
+            }
           }
           if (pkObj.addresses.length > 0) 
             this._sendPktoAPI(pkObj, this.currentBlock) // don't wait for the api calls
@@ -279,21 +276,21 @@ class PublicKeyCollector {
           this._updateStats();
 
           if (this.currentBlock >= this.lastBlock)
-              return 
-          // Do nothing if we are only updating a single block
+            break;
+          // Exit the loop if we are only updating a single block
           if (this.updateMode)
-              return; 
+            break;
         }
 
         // Lets process the next block
         this.currentBlock++;
         // If we are approaching the last block
-        if (this.lastBlock - this.currentBlock < 100) {
-            let blockNumber = await this.web3.eth.getBlockNumber()
-            this.lastBlock = blockNumber;
+        if (this.lastBlock - this.currentBlock < 5) {
+          let blockNumber = await this.web3.eth.getBlockNumber()
+          this.lastBlock = blockNumber;
         }
-
-        await this.processBlocks();
+      }
+      winston.info("Completed searching.");
     }
 
     /**
