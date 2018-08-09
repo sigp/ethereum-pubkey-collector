@@ -13,12 +13,13 @@
     "bn": "^1.0.1",
     "deep-extend": "^0.6.0",
     "ethereumjs-lib": "^3.0.0",
-    "moment-timezone": "^0.5.17",
-    "mongodb": "^3.0.10",
+    "http": "0.0.0",
+    "moment-timezone": "^0.5.21",
+    "mongodb": "^3.1.1",
     "nan": "^2.10.0",
     "secp256k1": "^3.5.0",
-    "sqlite3": "^4.0.0",
-    "web3": "^1.0.0-beta.34",
+    "sqlite3": "^4.0.2",
+    "web3": "^1.0.0-beta.35",
     "winston": "^3.0.0"
   }
 }
