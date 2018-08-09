@@ -19,7 +19,6 @@ class Config(object):
 # App setup
 app = Flask(__name__, instance_relative_config=True)
 app.config.from_object(Config)
-# api = Api(app)
 
 # Set up locking for write sync
 lock = Lock()
