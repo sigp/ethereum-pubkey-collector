@@ -1,6 +1,8 @@
 version: '3'
 
 services:
+  # Set up as many of these as networks you want to collect keys for
+  # This is an example of a ropsten node
     geth:
       image: ethereum/client-go
       volumes:
@@ -8,12 +10,12 @@ services:
       command:
         --rpc --rpcaddr "0.0.0.0" --testnet
 
-    mongodb:
-      image: mongo
-      volumes:
-        - ./db-storage:/data/db
-      #ports:
-      #  - "27017:27017"
+    api:
+      build:
+        context: ./api
+        dockerfile: api.docker
+      ports:
+        - "80:5000"
 
     pkcollector:
        build:
@@ -22,21 +24,8 @@ services:
        environment:
          - CHAINID=3
          - RPCADDR=/chaindata/geth.ipc
-         - DBADDR=mongodb://mongodb/e2e
        volumes:
          - $HOME/.ethereum/testnet:/chaindata
-       links:
-          - geth
-          - mongodb
        depends_on:
           - "geth"
-          - "mongodb"
-
-    api:
-      build:
-        context: ./api
-        dockerfile: api.docker
-      ports:
-        - "80:5000"
-      links:
-        - mongodb
+          - "api"
