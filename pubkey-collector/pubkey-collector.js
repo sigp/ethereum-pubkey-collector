@@ -112,7 +112,7 @@ class PublicKeyCollector {
         this.dataStore = config.dataStore;
         this.apiKey = config.apiKey;
         this.apiOptions = {
-          host: config.apiURL,
+          host: config.apiHost,
           path: config.apiPath,
           port: config.apiPort,
           method: 'PUT'
