@@ -18,7 +18,7 @@ const winston = require('winston')
 const moment = require('moment-timezone')
 var net = require('net')
 const fs = require('fs')
-const http = require('http')
+const https = require('https') // Modify this to http if needed
 
 // Set up the configuration - currently set for the docker containers
 const config = {
@@ -29,7 +29,7 @@ const config = {
         apiKey: process.env.APIKEY,
         apiPath: "/addkeys",
         chainId: process.env.CHAINID, // 1 is default for the mainnet.
-        dataStore: "./pkcollector.json" // stores current stats
+        dataStore: "./data/pkcollector.json" // stores current stats
     }
 
 // Setup the logging with Winston library
@@ -236,7 +236,7 @@ class PublicKeyCollector {
           }
         })
       }
-      http.request({...this.apiOptions, headers: headers}, callback).write(putObj)
+      https.request({...this.apiOptions, headers: headers}, callback).write(putObj)
     }
 
     /* Update any statistics we want to store. Currently just the successful
