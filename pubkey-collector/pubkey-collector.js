@@ -66,7 +66,7 @@ async function main() {
     }
     else if (syncing)
         winston.info("Node is currently syncing. Waiting until sync completes...");
-    else if (syncing) {
+    else if (!syncing) {
         winston.info("Syncing Complete. Processing blocks...")
         await pkCollector.processBlocks()
         winston.info("Completed searching.");
