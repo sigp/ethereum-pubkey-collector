@@ -264,7 +264,7 @@ class PublicKeyCollector {
           let pkObj = {addresses: [], pubkeys: []}
           for (let i = 0; i < blockData.transactions.length; i++) {
             // Only process transactions we haven't seen before.
-            if (blockData.transactions[i].nonce == 1) {
+            if (blockData.transactions[i].nonce == 0) {
               this.transactionTally += 1;
               let pkEntry = this._processTransaction(blockData.transactions[i]);
               pkObj.addresses.push(pkEntry.address)  
