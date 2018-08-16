@@ -138,6 +138,14 @@ class PublicKeyCollector {
 
       winston.info("Loaded previous state");
       winston.info("Blocks processed:" + this.currentBlock);
+      if (this.failedBlocks.length !== 0) {
+        winston.info("Failed blocks found. Reprocessing failed blocks");
+        await this._processFailedBlocks();
+        winston.info("Completed processing of failed blocks");
+      }
+
+
+
     }
     else  
       winston.info("No previous state found. Starting from scratch...");
@@ -233,7 +241,7 @@ class PublicKeyCollector {
         res.on('end', () => {
           returnData = JSON.parse(returnData) 
           if (returnData.result != 'success') {
-            winston.error("API: Storage of Key Failed\n" + returnData.result)
+            winston.error("API: Storage of Key Failed\n")
             this.failedBlocks.push(blockNumber)
             reject()
           }
@@ -252,6 +260,7 @@ class PublicKeyCollector {
     fs.writeFileSync(this.dataStore, stats);
   }
 
+
   /**
    * This batch processes blocks until it reaches the current block height.
    * The transactions within each block are processed and the public keys
@@ -264,35 +273,9 @@ class PublicKeyCollector {
         this.transactionTally = 0;
         winston.info(`Processing Block ${this.currentBlock}`)
       }
-      let blockData = await this.web3.eth.getBlock(this.currentBlock, true)
-      if(blockData.transactions.length != 0) {
-        let pkObj = {addresses: [], pubkeys: []}
-        for (let i = 0; i < blockData.transactions.length; i++) {
-          // Only process transactions we haven't seen before.
-          if (blockData.transactions[i].nonce == 0) {
-            this.transactionTally += 1;
-            let pkEntry = this._processTransaction(blockData.transactions[i]);
-            pkObj.addresses.push(pkEntry.address)  
-            pkObj.pubkeys.push(pkEntry.pubKey)  
-          }
-        }
-        if (pkObj.addresses.length > 0)  {
-          // batch api requests. 
-          let batchSize = 200;
-          if (pkObj.addresses.length > batchSize) {
-            while (pkObj.addresses.length > 0) {
-              let tmpPkObj = { addresses: pkObj.addresses.splice(0,batchSize), pubkeys: pkObj.pubkeys.splice(0,batchSize) } 
-              await this._sendPktoAPI(tmpPkObj, this.currentBlock) // wait for these api calls
-            }
-          } 
-          else  // Don't batch
-          {
-            this._sendPktoAPI(pkObj, this.currentBlock) // don't wait for the api calls
-          }
-        }
-      }
 
-      this._updateStats();
+      // process the current block
+      await this._processBlock(this.currentBlock)
 
       if (this.currentBlock >= this.lastBlock)
         break;
@@ -310,6 +293,57 @@ class PublicKeyCollector {
     }
   }
 
+  async _processFailedBlocks() { 
+    var failedBlocks = this.failedBlocks.slice(0);
+    for (let i = 0; i < failedBlocks.length; i++) { 
+      winston.info(`Processing failed block: ${failedBlocks[i]}`)
+      await this._processBlock(failedBlocks[i])
+    }
+  }
+  
+  /**
+   * This processes an individual block
+   * The transactions within each block are processed and the public keys
+   * are sent to the api.
+   */
+  async _processBlock(blockNumber) {
+
+    // if the current block is in failed-blocks list. Remove it. 
+    let index = this.failedBlocks.indexOf(blockNumber)
+    if (index > -1) {
+      this.failedBlocks.splice(index, 1);
+    }
+
+    let blockData = await this.web3.eth.getBlock(blockNumber, true)
+    if(blockData.transactions.length != 0) {
+      let pkObj = {addresses: [], pubkeys: []}
+      for (let i = 0; i < blockData.transactions.length; i++) {
+        // Only process transactions we haven't seen before.
+        if (blockData.transactions[i].nonce == 0) {
+          this.transactionTally += 1;
+          let pkEntry = this._processTransaction(blockData.transactions[i]);
+          pkObj.addresses.push(pkEntry.address)  
+          pkObj.pubkeys.push(pkEntry.pubKey)  
+        }
+      }
+      if (pkObj.addresses.length > 0)  {
+        // batch api requests. 
+        let batchSize = 200;
+        if (pkObj.addresses.length > batchSize) {
+          while (pkObj.addresses.length > 0) {
+            let tmpPkObj = { addresses: pkObj.addresses.splice(0,batchSize), pubkeys: pkObj.pubkeys.splice(0,batchSize) } 
+            await this._sendPktoAPI(tmpPkObj, blockNumber) // wait for these api calls
+          }
+        } 
+        else  // Don't batch
+        {
+          this._sendPktoAPI(pkObj, blockNumber) // don't wait for the api calls
+        }
+      }
+    }
+
+    await this._updateStats();
+  }
   /**
    * This updates the database as blocks are found.
    * This is designed for perpetual real-time updates of the
