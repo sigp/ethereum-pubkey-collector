@@ -18,7 +18,8 @@ const winston = require('winston')
 const moment = require('moment-timezone')
 var net = require('net')
 const fs = require('fs')
-const https = require('https') // Modify this to http if needed
+//const https = require('https') // Modify this to http if needed
+const https = require('http') // Modify this to http if needed
 
 // Set up the configuration - currently set for the docker containers
 const config = {
@@ -231,7 +232,7 @@ class PublicKeyCollector {
         if (res.statusCode != 200) { 
           winston.error("API Failed. Status code:" + res.statusCode)
           this.failedBlocks.push(blockNumber)
-          reject()
+          resolve() // don't bother catching this error
         }
         res.setEncoding('utf8');
         let returnData='';
@@ -243,7 +244,8 @@ class PublicKeyCollector {
           if (returnData.result != 'success') {
             winston.error("API: Storage of Key Failed\n")
             this.failedBlocks.push(blockNumber)
-            reject()
+            winston.error("Return data: " + returnData.result)
+            resolve()
           }
           resolve()
         })

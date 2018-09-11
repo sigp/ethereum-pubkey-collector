@@ -7,6 +7,8 @@ RUN apk add python bash build-base git
 RUN mkdir /code
 WORKDIR /code
 
+RUN mkdir data
+
 ADD package.json .
 RUN npm install
 RUN npm install -g forever

@@ -1,16 +1,14 @@
 # E2E - Ethereum Address to Public Key API
 
-from flask import Flask, abort, request
+from flask import Flask, abort, request, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
-from threading import Lock
-import rocksdb
+import psycopg2
 import sha3
 import re
 import json
 import os
-
 
 # configuration 
 class Config(object):
@@ -24,32 +22,70 @@ app = Flask(__name__, instance_relative_config=True)
 app.config.from_object(Config)
 CORS(app)
 
-# Set up locking for write sync
-lock = Lock()
+# Set up postgres db variables
+db_host = 'localhost'
+db_port = '54321'
+db_user = 'e2e_api'
+db_password = ''
+db_name = "e2e"
 
-# Configure rocksdb
-db_opts = rocksdb.Options()
-db_opts.create_if_missing = True
-db_opts.max_open_files = 300000
-db_opts.write_buffer_size = 67108864
-db_opts.max_write_buffer_number = 300
-db_opts.target_file_size_base = 67108864
-db_opts.table_factory = rocksdb.BlockBasedTableFactory(
-    filter_policy=rocksdb.BloomFilterPolicy(10),
-    block_cache=rocksdb.LRUCache(5 * (1024 ** 3)),
-    block_cache_compressed=rocksdb.LRUCache(5000 * (1024 ** 2)))
+if 'DB_HOST' in os.environ:
+    db_host = os.environ['DB_HOST']
+if 'DB_PORT' in os.environ:
+    db_port = os.environ['DB_PORT']
+if 'DB_NAME' in os.environ:
+    db_name = os.environ['DB_NAME']
+if 'DB_USER' in os.environ:
+    db_user = os.environ['DB_USER']
+if 'DB_PASS' in os.environ:
+    db_pass = os.environ['DB_PASS']
 
-try:
-    db_dir = os.environ['ROCKSDB']
-except Exception as e:
-    db_dir = '/var/e2e'
 # Single non-session api key for adding keys to db
 API_KEY = os.environ['APIKEY']
 
-global_db = rocksdb.DB(db_dir + '/pkcollector.ldb', db_opts)
-
 # Apply Limits
 limiter = Limiter(app, key_func=get_remote_address, default_limits=["1000 per day", "1 per second"])
+
+
+def get_db():
+    """ Open a database connection if one doesn't exist """ 
+    if not hasattr(g, 'conn'):
+        (g.conn, g.cur) = connect_db()
+    return g.cur
+
+
+def connect_db(): 
+    """ Connect to the database. Currently Postgres """
+    conn = psycopg2.connect(host=db_host, dbname=db_name, user=db_user,
+                            port=db_port, password=db_pass)
+    cur = conn.cursor()
+    return (conn, cur)
+
+
+# Database functions
+def db_select(cur, eth_address): 
+    """ Obtains the public key for a given ethereum address """ 
+    SQL = "SELECT publickey FROM publickeyMapping WHERE address = %s"
+    cur.execute(SQL, [eth_address])
+    result = cur.fetchone() 
+    if result is not None:
+        return result[0]
+    else:
+        return None
+
+def db_insert(cur, eth_address, publickey): 
+    """ Inserts the publickey for a given sanitized ethereum address """ 
+    SQL = "INSERT INTO publickeyMapping (address, publickey)  VALUES (%s, %s)"
+    cur.execute(SQL, (eth_address, publickey))
+    g.conn.commit()
+
+
+@app.teardown_appcontext
+def close_db(error): 
+    """ Close the database at the end of the request """ 
+    if hasattr(g, 'conn'):
+        g.cur.close()
+        g.conn.close()
 
 
 def clean_address(address):
@@ -86,23 +122,25 @@ def validate_publickey(address, publickey):
 
 @app.route('/address/<string:address>', methods=['GET'])
 def address_to_publickey(address):
+    cur = get_db()
     if not validate_address(address):
         return '{result: incorrect address format}'
 
-    db = global_db
     eth_address = clean_address(address)
     try:
-        pubkey = db.get(bytes.fromhex(eth_address))
+        pubkey = db_select(cur, eth_address)
     except Exception as e:
+        print(e)
         return json.dumps({'result': 'error'})
     if(pubkey is None):
         return json.dumps({'result': 'not found'})
-    return json.dumps({'address': '0x' + address, 'publickey': pubkey.hex()})
+    return json.dumps({'address': address, 'publickey': pubkey})
 
 
 @app.route('/addkeys', methods=['PUT'])
 @limiter.exempt
 def add_public_key():
+    cur = get_db()
     content = request.get_json(True)
     key = content['key']
     addresses = content['addresses']
@@ -117,7 +155,6 @@ def add_public_key():
     if len(addresses) != len(publickeys):
         return '{result: list length mismatch}'
 
-    db = global_db
     for idx, raw_address in enumerate(addresses):
         address = str(raw_address)
         if not validate_address(address):
@@ -127,9 +164,8 @@ def add_public_key():
         eth_address = clean_address(address)
         if not validate_publickey(eth_address, publickey):
             return '{result: incorrect public key}'
-
         try:
-            db.put(bytes.fromhex(eth_address), bytes.fromhex(publickey), sync=True)
+            db_insert(cur, eth_address, publickey)
         except Exception as e:
             print(e)
             return json.dumps({'result': 'error. failed import of address:' + address})

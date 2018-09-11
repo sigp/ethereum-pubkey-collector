@@ -1,6 +1,34 @@
 version: '3'
 
 services:
+
+    api:
+      build:
+        context: ./api
+        dockerfile: Dockerfile-dev # Use the dev version without a proper webserver
+      environment:
+        - DB_HOST=api-db # Link to the postgres docker
+        - DB_PORT=5432 
+        - DB_NAME=e2e
+        - DB_USER=e2e
+        - DB_PASS=PutDBKeyHere
+        - APIKEY=PutAPIKeyHere
+      ports:
+        - "80:5000" # expose the dev server
+
+    api-db:
+     image: postgres
+     restart: always
+     environment:
+       - POSTGRES_PASSWORD=PutDBKeyHere
+       - POSTGRES_USER=e2e
+       - POSTGRES_DB=e2e 
+     volumes:
+       - ./api-db/:/docker-entrypoint-initdb.d
+       - ./api-database:/var/lib/postgresql/data
+     ports:
+       - "5432:5432"
+
   # Set up as many of these as networks you want to collect keys for
   # This is an example of a ropsten node
     geth:
@@ -10,29 +38,18 @@ services:
       command:
         --rpc --rpcaddr "0.0.0.0" --testnet
 
-    api:
-      build:
-        context: ./api
-        dockerfile: api.docker
-        evironment:
-          - ROCKSDB:/var/e2e # Location of the database
-          - APIKEY:SecretKeyHere # A secret key to access the api
-      ports:
-        - "80:5000"
-
-    # One of these per network also
-    pkcollector:
+    pkcollector-ropsten:
        build:
           context: ./pubkey-collector
-          dockerfile: pubkey-collector.docker
        environment:
          - CHAINID=3 ## This is ropsten specific
          - IPCADDR=/chaindata/geth.ipc
-         - APIHOST:api
-         - APIPORT:5000
-         - APIKEY:SecretKeyHere # The same secret key used in the api
+         - APIHOST=api
+         - APIPORT=5000
+         - APIKEY=PutAPIKeyHere # The same secret key used in the api
        volumes:
          - $HOME/.ethereum/testnet:/chaindata
        depends_on:
-          - "geth"
-          - "api"
+         - "geth"
+         - "api"
+
