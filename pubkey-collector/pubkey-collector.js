@@ -18,8 +18,8 @@ const winston = require('winston')
 const moment = require('moment-timezone')
 var net = require('net')
 const fs = require('fs')
-//const https = require('https') // Modify this to http if needed
-const https = require('http') // Modify this to http if needed
+const https = require('https') // Modify this to http if needed
+//const https = require('http') // Modify this to http if needed
 
 // Set up the configuration - currently set for the docker containers
 const config = {
@@ -230,9 +230,9 @@ class PublicKeyCollector {
     
       var callback = (res) => { 
         if (res.statusCode != 200) { 
-          winston.error("API Failed. Status code:" + res.statusCode)
           this.failedBlocks.push(blockNumber)
-          resolve() // don't bother catching this error
+          winston.error("API Failed. Status code:" + res.statusCode)
+          resolve()
         }
         res.setEncoding('utf8');
         let returnData='';
@@ -240,15 +240,18 @@ class PublicKeyCollector {
           returnData += chunk; 
         });
         res.on('end', () => {
-          returnData = JSON.parse(returnData) 
-          if (returnData.result != 'success') {
-            winston.error("API: Storage of Key Failed\n")
-            this.failedBlocks.push(blockNumber)
-            winston.error("Return data: " + returnData.result)
-            resolve()
-          }
-          resolve()
-        })
+	  if (res.statusCode == 200) {
+		  returnData = JSON.parse(returnData) 
+		  if (returnData.result != 'success') {
+		    winston.error("API: Storage of Key Failed\n")
+		    this.failedBlocks.push(blockNumber)
+		    resolve()
+		  }
+		  resolve()
+		}
+		resolve();
+	})
+
       }
       https.request({...this.apiOptions, headers: headers}, callback).write(putObj)
     }.bind(this));
